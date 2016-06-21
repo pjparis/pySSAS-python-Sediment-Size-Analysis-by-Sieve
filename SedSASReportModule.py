@@ -31,7 +31,7 @@ METHODS to call:
         Returns: nothing
         >>>Call this method once for each sample, where there are n samples per transect
         
-    SASReportDistructor(c)
+    SASReportDestructor(c)
         Arguments:
         - c=the ReportLib canvas object
         Returns: the saved report as a PDF document
@@ -91,7 +91,7 @@ def SASReportPageDispatcher(c, pname, smplDate, tr, s, df, D, gstats, mstats):
     SASReportDrawGraphicStatisticsTable(c, gstats)
     SASReportDrawMomentStatisticsTable(c, mstats)
     SASReportDrawQuantilesList(c, D, s)
-    SASReportDrawPlots(c, s)
+    SASReportDrawPlots(c, s, tr)
     SASReportDrawFootnotes(c)
     
     c.showPage()
@@ -193,8 +193,8 @@ def SASReportDrawQuantilesList(c, D, s):
 
 # ## ######################################################################################
 # ## SASReportDrawPlots
-def SASReportDrawPlots(c, s):
-    c.drawImage(s+'_dual.png', 7, 90, 21*cm, 10*cm)
+def SASReportDrawPlots(c, s, tr):
+    c.drawImage(tr+'_'+s+'_dual.png', 7, 90, 21*cm, 10*cm)
     # ## draw the weight percent histogram and frequency curve to the report sheet:
     #c.drawImage(s+'_wf.png', 21, 90, 9*cm, 9*cm)
     # ## draw the cumulative weight curve to the report sheet:
