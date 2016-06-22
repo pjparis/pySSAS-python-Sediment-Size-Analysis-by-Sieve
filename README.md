@@ -245,3 +245,4 @@ uses simple linear interpolation to simulate the graphical estimation of a singl
 	NOTE this is an internal function called by InterpolateQuantileValues(). The user can call this method, but this is discouraged...I don't know why.
 
 
+	
