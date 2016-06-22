@@ -16,17 +16,17 @@ Created on Tue May 17 11:31:33 2016
 @author: paulp
 """
 import math, sys
-sys.path.append('/Users/paulp/Documents/projects/SedSAS/')
+sys.path.append(' replace this text with path to SedSASample class.py  ')
 import SedSASampleClass as sssc
 import SedSASReportModule as ssrm
 
 
 # ###### USER INPUTS #################################################################
 # 1.) Enter the absolute (full) path to the file(s) containing the data to be analyzed:
-fp='/Users/paulp/Documents/projects/SedSAS/'
+fp=' replace this text with the full (absolute) path to data file, less the file name '
 
 # 2.) Enter the name of the file(s) containing the data to be analyzed:
-fn='USFWS_survey07142015_transect.csv'
+fn=' replace this text with the full name of the source data file '
 
 # 3.) Set the field delimiter used to separate data columns (fields) in the input file fn:
 delim=','
