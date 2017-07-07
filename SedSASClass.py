@@ -8,9 +8,9 @@ import matplotlib.pyplot as plt
 import collections
 
 
-class SedSASample(object):
+class SedSAS(object):
 	'''
-		Class SedSASample - Sediment Size Analysis by Sieve
+		Class SedSAS - Sediment Size Analysis by Sieve
 
 		DESCRIPTION:
 		Performs various data extractions, manipulations, statistical analyses, and plotting
@@ -58,14 +58,6 @@ class SedSASample(object):
 	'''
 
 	def __init__(self,df,transect,samples,screens):
-		#  absolute path to source data file, less the file name
-		#######self.filePath=userInputs[0]			   
-		# the name of source data file
-		#######self.fileName=userInputs[1]			   
-		 # field delimiter used to separate data values in source file
-		#######self.fileDelimiter=userInputs[2]		 
-		# list of data field(s) (columns) positions to include from the source file
-		#######self.fileColumnsToUse=userInputs[3]	   
 		 # load the prepared and ready-to-go pandas data frame:
 		self.df0=df       
 		 # current transect id (as a Python string)
@@ -78,6 +70,7 @@ class SedSASample(object):
 		# quantilesList=list of quantiles that will be interpolated to compute statistics.
 		# These are fixed, based on requirements from Folk, (1980).
 		self.quantilesList=[5,10,16,25,50,75,84,90,95] 
+		
 		# quantilesDict=ordered dict. of interpolated quantiles (keys=sample id.; 
 		# values=list of interpolated quantile values (9 items as per quantilesList)) 
 		self.quantilesDict=collections.OrderedDict()
@@ -98,14 +91,12 @@ class SedSASample(object):
 		#	Otherwise, an note is posted to the user (console) informing that there is 
 		#	missing data in the current sample and so will be skipped over. Processing is
 		#	then passed to the next sample
-		#######:df0=pandas.read_table( self.filePath+self.fileName, delimiter=self.fileDelimiter, header=0 )
+
 		# extract recs for current transect and computes transpose
 		df1=self.df0.loc[ self.df0['Transect'] == self.transect ].copy().T
 		df1=df1.drop(['Transect','Sample'], axis=0)		  # added 6/29/2017
 		df1.columns=self.samplesList					  # add column headers
 		# keep only the [sieve] screen weight columns
-		#######df1=df1.iloc[ self.fileColumnsToUse[0]:self.fileColumnsToUse[-1]+1, : ] 
-   
 
 		# 2. checks the percentage of sand/sediment that was stopped by the largest screen 
 		# as well as the percentage captured in the pan at the base of the sieve stack. If 
