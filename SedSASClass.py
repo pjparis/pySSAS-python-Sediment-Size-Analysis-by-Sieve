@@ -93,53 +93,57 @@ class SedSAS(object):
 		#	then passed to the next sample
 
 		# extract recs for current transect and computes transpose
-		df1=self.df0.loc[ self.df0['Transect'] == self.transect ].copy().T
-		df1=df1.drop(['Transect','Sample'], axis=0)		  # added 6/29/2017
-		df1.columns=self.samplesList					  # add column headers
-		# keep only the [sieve] screen weight columns
+		try:
+			df1=self.df0.loc[ self.df0['Transect'] == self.transect ].copy().T
+			df1=df1.drop(['Transect','Sample'], axis=0)		  # added 6/29/2017
+			df1.columns=self.samplesList					  # add column headers
+			# keep only the [sieve] screen weight columns
 
-		# 2. checks the percentage of sand/sediment that was stopped by the largest screen 
-		# as well as the percentage captured in the pan at the base of the sieve stack. If 
-		# either of the percentages is > 5%, warn the user. If the latter, proceed further
-		# to replace existing pan fraction with 0.0 gms. Why do this? See print statements
-		# below.
-		for s in self.samplesList:
-			pcf=df1[s][0]/df1[s].sum()*100	# percent coarse fraction
-			pff=df1[s][-1]/df1[s].sum()*100   # percent fine fraction
+			# 2. checks the percentage of sand/sediment that was stopped by the largest screen 
+			# as well as the percentage captured in the pan at the base of the sieve stack. If 
+			# either of the percentages is > 5%, warn the user. If the latter, proceed further
+			# to replace existing pan fraction with 0.0 gms. Why do this? See print statements
+			# below.
+			for s in self.samplesList:
+				pcf=df1[s][0]/df1[s].sum()*100	# percent coarse fraction
+				pff=df1[s][-1]/df1[s].sum()*100   # percent fine fraction
 
-			if(pcf>5.0):
-				print('')
-				print('WARNING: percent of unidfferentiated coarse fraction in sample',s,'is:' ,str(round(pcf,2)), '--Values in excess of 5% can introduce significant error in resulting statistical computations.')
-			if( pff > 5.0 ):
-				print('')
-				print('WARNING: percent of unidfferentiated fine fraction in sample',s, 'is:' ,str(round(pff,2)), '--As values in excess of 5% can introduce significant error in resulting statistical computations, this fraction will not be considered in the analysis.')
-				# replace the pan fraction (screen [-1]) with 0.0
-				df1[s][-1]=0.0	
+				if(pcf>5.0):
+					print('')
+					print('WARNING: percent of unidfferentiated coarse fraction in sample',s,'is:' ,str(round(pcf,2)), '--Values in excess of 5% can introduce significant error in resulting statistical computations.')
+				if( pff > 5.0 ):
+					print('')
+					print('WARNING: percent of unidfferentiated fine fraction in sample',s, 'is:' ,str(round(pff,2)), '--As values in excess of 5% can introduce significant error in resulting statistical computations, this fraction will not be considered in the analysis.')
+					# replace the pan fraction (screen [-1]) with 0.0
+					df1[s][-1]=0.0	
 			
 			
-		# 3. compute the sample fraction weight percent sums (df2) and cumulative weight
-		# percentages (df3) for the transect samples...
-		df2=(df1/df1.sum(axis=0))*100		 # compute weight percentages
-		df3=df2.cumsum()					 # compute cumulative weight percentages from 
+			# 3. compute the sample fraction weight percent sums (df2) and cumulative weight
+			# percentages (df3) for the transect samples...
+			df2=(df1/df1.sum(axis=0))*100		 # compute weight percentages
+			df3=df2.cumsum()					 # compute cumulative weight percentages from 
 											 # weight percentages
 		
-		# 4. build unique column names for weight percentage and cumulative weight 
-		# percentage values...
-		wDfColNamesList=[];   cDfColNamesList=[]
-		for s in self.samplesList:
-			wDfColNamesList.append(s+'wp')
-			cDfColNamesList.append(s+'cwp')
-		df2.columns=wDfColNamesList		 # set weight percent column names
-		df3.columns=cDfColNamesList		 # set cumulative weight percent column names
+			# 4. build unique column names for weight percentage and cumulative weight 
+			# percentage values...
+			wDfColNamesList=[];   cDfColNamesList=[]
+			for s in self.samplesList:
+				wDfColNamesList.append(s+'wp')
+				cDfColNamesList.append(s+'cwp')
+			df2.columns=wDfColNamesList		 # set weight percent column names
+			df3.columns=cDfColNamesList		 # set cumulative weight percent column names
 		
-		# 5. append both the weight percentage and cumulative weight percentage values to 
-		# df
-		frames=[df1,df2,df3]
-		self.df=pandas.concat(frames, axis=1)
+			# 5. append both the weight percentage and cumulative weight percentage values to 
+			# df
+			frames=[df1,df2,df3]
+			self.df=pandas.concat(frames, axis=1)
 		
-		# 6. add column of seive screen sizes (phi) to df
-		self.df['phi']=self.screens			
-
+			# 6. add column of seive screen sizes (phi) to df
+			self.df['phi']=self.screens			
+			self.foundTransect = True
+		except:
+			print('Missing data for transect:', self.transect )
+			self.foundTransect = False
 	# ####### End of internal df calcs. Now, let's get to work!	
 	# ####### End of Constructor (__init__)	
 
