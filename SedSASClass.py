@@ -54,6 +54,8 @@ class SedSAS(object):
 			- added check on undifferntiated coarse and fine fractions 8 June, 2016 (pjp)
 			- added method PrintSamplesModes  9 June, 2016 (pjp)
 			- added method Analyze2Stdout 30 June, 2017 (pjp)
+			- modified class input stream to simplify class instantiation July, 2017 (pjp)
+			- added assertion handling to constructor (__init__) July, 2017 (pjp)
 
 	'''
 
@@ -351,7 +353,7 @@ class SedSAS(object):
 			
 			Returns: header as a Python string
 		'''
-		ws=''
+		ws='Sample,'
 		# craft a columns header and write to write string	
 		for i in range(3):
 			if(i==0):	
@@ -410,7 +412,7 @@ class SedSAS(object):
 			specified path and file name) formatted as comma separated values. 
 
 			Input args: 
-				fn = user-defined output file name
+				fn = user-defined output file path and name
 
 			Returns: none
 		'''
@@ -422,7 +424,7 @@ class SedSAS(object):
 		# and run the following methods automatically:
 
 		# open the target text file and write the header string:
-		f=open(self.filePath+fn, 'w' )
+		f=open(fn, 'a' )
 		f.write(hdr + '\n')
 
 		# start loop here:
@@ -430,7 +432,7 @@ class SedSAS(object):
 			if( math.isnan( self.df[s].sum()) == True):  #pandas.isnull(self.df[s]) )
 				print('Skipping sample:',self.transect,s, 'because of missing data...')
 			else:
-				ws=''
+				ws=s+','
 				gStats=self.ComputeGraphicStats(s, Q)
 				mStats=self.ComputeMomentStats(s)
 				modes=self.FindSampleModes(s)

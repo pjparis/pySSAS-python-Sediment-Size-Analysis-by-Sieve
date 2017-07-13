@@ -12,13 +12,10 @@ Purpose: script intantiates SedSASample class to process one or more
 User this script as a template
 
 Created on: Thurs June 09 12:07:00 2016
+Modified to reflect changes/upgrades to the SedSAS class on: July 12, 2017
 
 @author: pjp
 """
-
-# import the SedSample class:
-import math
-import SedSASampleClass as sc
 
 # ###### USER INPUTS #################################################################
 # 1.) Enter the absolute (full) path to the file(s) containing the data to be analyzed:
@@ -28,12 +25,10 @@ fp=' replace this text with the full (absolute) path to data file, less the file
 fn=' replace this text with the full name of the source data file '
 
 # 3.) Set the field delimiter used to separate data columns (fields) in the input file fn:
+### comma is the default
 delim=','
 
-# 4.) Set up the use columns list. Just modify the existing list as needed:
-use_cols=[4,5,6,7,8,9,10,11,12,13,14,15,16]
-
-# 5.) Enter the transect name/id (with the quotes around the name):
+# 4.) Enter the transect name/id (with the quotes around the name):
 trList=['T2'] 
 # ['T1','T2','T3','T4','T5','T6','T7','T8','T9','T10','T11','T12','T13','T14','T15','T16']     
 
@@ -47,26 +42,39 @@ scrns=[-1.0,-0.5,0.0,0.5,1.0,1.25,1.5,1.75,2.0,2.5,3.0,3.5,4.0]
 # ###### END USER INPUTS #############################################################
 
 
-# import the raw sediment sample weights from the source data file into a new
-# pandas data frame:
+# import prerequisites:
+import sys, math
+import pandas as pd
+
+# adding the sys.path variable to point to the SedSASClass.py file:
+sys.path.append('./')
+
+# import SedSAS class:
+import SedSASClass
+
+# read input file, create, populate, and wrangle data frame df:
+# Note that the fields (columns) dropped here may not match those for the data you're
+# currently working with. Adjust these accordingly, comment the line out if no fields
+# require removal.
+df = pd.read_csv(fp+fn)
+df=df.drop(['Pan Weight','Wet Sample Weight'], axis=1)
 
 
 # loop thru the list of transects in the trList and process the samples for each:
 for tr in trList:
-    # construct argument tuple passed to SASample class instance from user inputs.
-    inputs=(fp,fn,delim,use_cols,tr,samples,scrns)
-
-    mySand=sc.SedSASample(inputs)
+    mySand=SedSASClass.SedSAS(df, tr, samples, scrns)
     # if you're calling class methods directly (other than Analyze2CSV) you must 
     # call InterpolateQuantileValues() and return the ordered dictionary D:
     D=mySand.InterpolateQuantileValues()
     
-    df=mySand.GetDataFrame()        # return a reference to data frame df
+    dfo=mySand.GetDataFrame()        # return a reference to data frame df
     
     # to loop thru the samples list for each transect
     for s, Q in D.items():
     	# handle situation if the current transect sample set is missing from sample file
-    	if( math.isnan( df[s].sum()) == True):  
+        # note that missing transects are handled internally in the class (7/12/2017),but
+        # this check does no harm.
+    	if( math.isnan( dfo[s].sum()) == True):  
         	print('Skipping sample:',tr,s, 'because of missing data...')
     	else:
         	gStats=mySand.ComputeGraphicStats(s,Q)     # compute graphic statistics
