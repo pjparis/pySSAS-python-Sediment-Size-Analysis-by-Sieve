@@ -212,7 +212,7 @@ class SedSAS(object):
 
 
 
-	def ComputeGraphicStats(self,s,Q):
+	def ComputeLogGraphicStats(self,s,Q):
 		'''computes "graphic" mean, median, standard deviation, skewness, and kurtosis 
 		   (per Folk, 1980) for a given transect sample.
 
@@ -235,6 +235,31 @@ class SedSAS(object):
 
 
 
+	def ComputeGeomGraphicStats(self,s,Q):
+		'''computes geometric "graphic" mean, median, standard deviation, skewness, and kurtosis 
+		   (per Folk and Ward, 1957) for a given transect sample.
+
+		   Input args:
+			   s  sample identifier as a Python string (EX. 'S1')
+			   Q  list of interpolated quantile values (9 items) for current sample
+
+		   Returns:
+			   Python tuple containing MN=mean,MD=median,SD=std. dev.,SK=skewness,K=kurtosis in mm.
+		'''
+		# note that np.log is the natural logarithm
+		MN=(np.log(2**Q[2]) + np.log(Q[4]) + np.log(Q[6]) )/3	   # for the graphic mean:
+		MD=nplog(2**Q[4] )					 # for the graphic median:
+		SD=((np.log(2**Q[6]) - np.log(2**Q[2]))/4)+(( np.log(2**Q[8])-np.log(2**Q[0]))/6.6) # inclusive graphic standard deviation:
+
+		# the graphic skewness (SK) and kurtosis (K):
+		SK=( np.log(2**Q[6])+np.log(2**Q[2])-2*np.log(2**Q[4]))/(2*(np.log(2**Q[6])-np.log(2**Q[2])))) \
+		+ ((np.log(2**Q[8])+np.log(2**Q[0])-2*np.log(2**Q[4]))/(2*(np.log(2**Q[8])-np.log(2**Q[0]))))
+		K=(np.log(2**Q[8])-np.log(2**Q[0]))/(2.44*(np.log(2**Q[5])-np.log(2**Q[3])))											   
+
+		return( (MN,MD,SD,SK,K) )
+
+
+
 	def ComputeMomentStats(self,s):
 		'''computes the sediment sample mean and standard deviation using the arithmetic 
 		   method of moments method as described by Folk (1980) for current sample.
@@ -243,7 +268,7 @@ class SedSAS(object):
 			   s = sample identifier as a Python string (EX. 'S1')
 
 			Returns:
-				Python tuple containing momMean=mean,momSD=standard deviation,
+				Python tuple containing momMean=mean (phi),momSD=standard deviation (phi),
 						,undifCF=undifferentiated coarse fraction (the weight of material
 						 captured by the coarsest sieve), undifFF=undifferentiated fine 
 						 fraction (the weight of material captured by the residual pan at 
@@ -285,7 +310,7 @@ class SedSAS(object):
 		# compute the mean sediment size using Folk (1980)'s Method of Moments (page 46) 
 		momMean=(midPt * W).sum() / W.sum()
 		# compute the sediment sample size standard deviation using Folk(1980)'s Method of Moments (page 46)
-		momSD=( (W*(momMean-midPt)**2).sum() / W.sum())**0.5
+		momSD=( (W*(momMean-midPt)**2).sum() / W.sum() )**0.5
 
 		# we want to provide back to the caller not only the mean and sd but also the 
 		# undifferentiated fractions, too
