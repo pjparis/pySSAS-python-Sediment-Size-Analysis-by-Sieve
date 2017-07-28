@@ -100,7 +100,7 @@ class SedSAS(object):
 			df1=df1.drop(['Transect','Sample'], axis=0)		  # added 6/29/2017
 			df1.columns=self.samplesList					  # add column headers
 			# keep only the [sieve] screen weight columns
-
+			
 			# 2. checks the percentage of sand/sediment that was stopped by the largest screen 
 			# as well as the percentage captured in the pan at the base of the sieve stack. If 
 			# either of the percentages is > 5%, warn the user. If the latter, proceed further
@@ -263,10 +263,13 @@ class SedSAS(object):
 		SK=( np.log(2**Q[6])+np.log(2**Q[2])-2*np.log(2**Q[4]))/(2*(np.log(2**Q[6])-np.log(2**Q[2]))) \
 		+ ((np.log(2**Q[8])+np.log(2**Q[0])-2*np.log(2**Q[4]))/(2*(np.log(2**Q[8])-np.log(2**Q[0]))))
 		K=(np.log(2**Q[8])-np.log(2**Q[0]))/(2.44*(np.log(2**Q[5])-np.log(2**Q[3])))											   
+		print('I am here')
 
 		# if user elects to have the computation results printed to std out:
 		if( prt2stdout==True):
 			self.PrintGraphicStats(s, (MN,MD,SD,SK,K), 'mm' )
+			print('I am here, too')
+
 			
 		return( (MN,MD,SD,SK,K) )
 
@@ -445,12 +448,13 @@ class SedSAS(object):
 			else:
 				print('')
 				print('Sample:', str(s))
-				self.PrintGraphicStats(s, self.ComputeGraphicStats(s, Q))
+				self.ComputeLogGraphicStats(s, Q, True)
 				self.PrintMomentStats(self.ComputeMomentStats(s))
-				self.PrintSampleModes(self.FindSampleModes(s))
+				self.FindSampleModes(s, True)
 
 				print('')
 		return()
+		
 		
 		
 	def Analyze2CSV(self, fn):
