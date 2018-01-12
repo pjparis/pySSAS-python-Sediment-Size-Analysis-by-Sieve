@@ -36,6 +36,12 @@ import numpy as np<br>
 import pandas<br>
 import matplotlib.pyplot as plt<br>
     <br><br>
+    
+## The most thorough documentation for the class is to be found in the Jupyter Notebook: SedimentSizeAnalysisbySieveNotebook, found elsewhere in this repository.
+<br><br>
+
+
+
 ## Part III: Notes:
 1. SedSASample was written and tested in a Python 3.x environment. It should work under 2.7.x conditions, but do test before proceeding with production work.
 
