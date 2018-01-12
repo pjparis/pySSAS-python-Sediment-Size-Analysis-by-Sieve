@@ -9,11 +9,11 @@ Created on Thu Aug  3 12:01:40 2017
 # -*- coding: utf-8 -*-
 
 # ## import prerequisite Python module dependencies:
-import math
 import numpy as np
 import pandas
 import matplotlib.pyplot as plt
-import collections
+#from scipy.optimize import curve_fit
+#import collections
 
 
 class SedSAS(object):
@@ -64,106 +64,50 @@ class SedSAS(object):
             - added method Analyze2Stdout 30 June, 2017 (pjp)
             - modified class input stream to simplify class instantiation July, 2017 (pjp)
             - added assertion handling to constructor (__init__) July, 2017 (pjp)
+            
+            must supply a Transect column containing the transect identifier
+            must supply a Sample column containing the sample identifier
+            must supply a dry_weight column containing the total computed
+               dry weight of the sample (value computed by summing all 
+               individual raw weights)
 
     '''
 
-    def __init__(self,df,transect,sample,screens):
+    def __init__(self, sample_id, df, screens, extrap_method='Linear'):
         
          # copy class user inputs to class variables:
          self.df=df
-         self.transect=transect
-         self.sample=sample
+         self.sample_id=sample_id
          self.screens=np.array(screens).T
          
          # list of quantiles to be estimated (interpolated) as required by Folk
          # and Ward graphical statistics...
          self.quantilesList=[5,10,16,25,50,75,84,90,95]
          
-         ''' Build Main Dataframe df:
-         reworks the user-supplied dataframe (as an input to the class) 
-         putting it into a format that can be used in the various methods
-         in the class. Here we also add weight percent and cumulative weight
-         percent columns along with an integer size (phi) reference column.
-        '''
-         try:
-             ## select record for current transect and sample from df:
-            self.df=self.df.loc[ (self.df['Transect'] == self.transect) & \
-                    (self.df['Sample'] == self.sample) ].copy()
-
-            ## capture the dry weight field attribute:
-            self.dry_wt=float( self.df['dry_weight'] )
-                                
-            self.df=self.df.T
-            
-            ## drop the Transect, Sample, and dry_weight fields from df:
-            self.df=self.df.drop(['Transect','Sample', 'dry_weight'], axis=0)
-            
-            ## add column labels (names) to df:
-            self.df.columns=[self.sample]
-            
-            ## compute and add the fraction weight percentages
-            self.df[self.sample+'wp']=(self.df/self.df.sum(axis=0))*100 
-            
-            ## compute and add the cumulative fractional weight percentages:
-            self.df[self.sample+'cwp']=self.df[self.sample+'wp'].cumsum()
-            
-            ## add integer field of sieve mesh (screen) sizes represented in df:
-            self.df['phi']=self.screens
-         except AttributeError as e:
-            print('Oops! We had a problem creating/converting the dataframe df. Check the input dataframe formatting...:', e)
-            
-         try:
-            ## compute and add the class size midpoints in phi units
-            x=np.array( self.df['phi'])
-            mp=(x[1:] + x[:-1]) / 2
-            self.df['midpt_phi']=np.append(self.df['phi'][0:1].values-0.5, mp)    
-
-            ## using the phi midpoints compute and add class size midpoints in
-            ## mm
-            self.df['midpt_mm']=2**(self.df['midpt_phi']*-1) 
-         except:
-            print('Oops!. We had a problem creating the midpoint columns')
-            
-         ''' Build the Fractional Dataframes (dfg, dfs, and dff):
-         creates subset dataframes, each holding a particle size class
-        (gravel, sand, slit/clay). The subset dataframes are used in lieu of
-        the main df for computations when there is an excess of material 
-        collected in either the coarsest (largest screen) or finest (pan) 
-        fractions.
-        gravel fraction (dfg), a sand fraction (dfs), and a fines fraction (dff)
-        '''
-         try:
-            ### for the coarse fraction:
-            self.dfg=self.df.loc[ self.df['phi'] <= -1 ].copy()
-            self.dfg[self.sample+'wp']=(self.dfg/self.dfg.sum(axis=0))*100 
-            self.dfg[self.sample+'cwp']=self.dfg[self.sample+'wp'].cumsum()
-            
-            ### for the sand fraction:
-            self.dfs=self.df.loc[ (self.df['phi'] > -1)  &  \
-                (self.df['phi'] < 4) ].copy()
-            self.dfs[self.sample+'wp']=(self.dfs/self.dfs.sum(axis=0))*100 
-            self.dfs[self.sample+'cwp']=self.dfs[self.sample+'wp'].cumsum()
-            
-            ### for the fine fraction:
-            self.dff=self.df.loc[ self.df['phi'] >= 4 ].copy()
-            self.dff[self.sample+'wp']=(self.dff/self.dff.sum(axis=0))*100 
-            self.dff[self.sample+'cwp']=self.dff[self.sample+'wp'].cumsum()
-         except:
-            print('ERROR! There was a problem in class method _init_ trying to subset df based on particle size fractions (see Step 7.)')
+         # construct the master dataframe. This will be central to much of the
+         # processing
+         self.BuildWorkingDataFrame()
         
-         ## call InterpolateQuantileVales to generate the quantile list that
+         ## call InterpolateQuantileValues to generate the quantile list that
          ## is passed to the Folk and Ward computation methods, along with a
          ## few other methods in the class:
-         try:
-             self.Q = self.InterpolateQuantileValues(self.sample)
-         except:
-             print('Oops! Call to InterpolateQuantileValues failed.')
-             print('Quantile list Q not created.')
+         self.Q = self.InterpolateQuantileValues(extrap_method)
+         #try:
+         #    
+         #except:
+         #    print('Oops! Call to InterpolateQuantileValues failed.')
+         #    print('Quantile list Q not created.')
          
          # alert user as to the current transect sample being processed:
-         print('-'*80)
-         print('Particle-Size Composition Analysis, Transect:', self.transect, 'Sample:', self.sample )
-         print('-'*80)
+         print('-'*70)
+         print('Particle-Size Composition Analysis. Processing Sample ID:',
+               self.sample_id )
+         print('-'*70)
+         
+         ## set a flag to control the creation and writing of a text file 
+         ## header line that is used by the method: Analysis2CSV. Initialize
+         ## to True
+         self.csvHeaderFlag=True
         
     # ####### End of Constructor (__init__)    
 
@@ -171,33 +115,88 @@ class SedSAS(object):
 
     # ####### Class Methods:
 
+    def BuildWorkingDataFrame(self):
+        ''' from the user-provide dataframe (as an argument to this function
+        and WHICH CONTAINS ONLY THE RAW phi WEIGHTS--use indexing to send 
+        only this portion of the original dataframe) and, using the raw 
+        weights, computes the individual and cumulative weight percentages, 
+        and the phi-class midpoint, adding each of these three to a new
+        sample dataframe. This dataframe iis returned to the caller for use
+        as input to other class methods.
+        
+        inputs: dataframe containing only the raw sediment sample weights
+        
+        returns: new dataframe with, along with a reproduction of the original 
+        sieve fraction weights, the individual and cumulative weight percent-
+        ages. The phi midpoint for each size class is also included.
+        '''
+        
+        # first make a copy of the transposed user-supplied weight dataframe 
+        self.sdf=self.df.T
+        self.sdf.columns=['weight']
 
-    def GetDataFrames(self):
-        '''returns the sample set data frames df,dfg,dfs,and dff to the caller.
+        ## add integer field of sieve mesh (screen) sizes represented in df:
+        self.sdf['phi']=self.screens
+        
+        ## compute and add the class size midpoints in phi units
+        x=np.array( self.sdf['phi'] )
+        mp=(x[1:] + x[:-1]) / 2
+        self.sdf['midpt_phi']=np.append(self.sdf['phi'][0:1].values-0.5, mp)    
+
+        ## using the phi midpoints compute and add class size midpoints in mm
+        self.sdf['midpt_mm']=2**(self.sdf['midpt_phi']*-1)
+        
+        ## compute and add the fraction weight percentages
+        self.sdf['weight_percent']=(self.sdf['weight']/self.sdf['weight'].sum(axis=0))*100 
+            
+        ## compute and add the cumulative fractional weight percentages:
+        self.sdf['cum_weight_percent']=self.sdf['weight_percent'].cumsum()
+            
+        return()
+        
+        
+
+    def GetDataFrame(self):
+        '''returns the sample set data frame sdf as generated by class method:
+            BuildSampleDataFrame() under the class constructor __init__ to
+            the caller
 
            Input args: none
 
-           Returns: a Python tuple containing 3 pandas dataframes: the first [0]
-                    is the df for the entire sample dataset, the second [1] is a
-                    subset containing only the gravel fraction, the third [2] 
-                    holds the sand particle size fraction, and the fourth [3]
-                    and final one is for the fine (silt/clay) fraction(s).
+           Returns: a  pandas dataframe.
         '''
         try:
-            return( (self.df,self.dfg,self.dfs,self.dff) )
+            return( self.sdf )
         except AttributeError as e:
-            print('Oops! [GetDataFrames]', e)
+            print('Oops! [GetDataFrame]', e)
             
             
             
-    
+            
+    def GetQuantileList(self):
+        '''returns the sample set qunatiles list as generated by class method:
+            InterpolateQuantileValues() under the class constructor __init__ to
+            the caller
+
+           Input args: none
+
+           Returns: a  Python list.
+        '''
+        try:
+            return( self.Q )
+        except AttributeError as e:
+            print('Oops! [GetQuantilList]', e)
+            
+            
+            
+            
     def Summary(self, s):
         ''' Summary is a convenience method that calls the class methods:
             - PrintSampleWeightsDataTable
             - PrintUndifferentiatedSizeFractionWeights
-            and goes on to compute the difference between the sample dry 
-            sediment weight and the summed individual raw weights (in grams)
-            reported for each seive mesh (screen) by the investigator in df: 
+            and goes on to report the sample dry sediment weight and the summed 
+            individual raw weights (in grams) reported for each seive mesh 
+            (screen) by the investigator in df: 
         '''
         self.PrintSampleWeightsDataTable(s)
 
@@ -208,7 +207,7 @@ class SedSAS(object):
         print('Pre and post-process dry sample weights:')
         print('Reported pre-seive total dry sample weight:', \
               round(self.dry_wt, 3),'gms' )
-        print('Computed sum of inidividual (Raw Wt (gm)) weights:', \
+        print('Computed sum of individual (Raw Wt (gm)) weights:', \
               round(self.df[s].sum(),3),'gms' )
         print('')
         
@@ -231,85 +230,189 @@ class SedSAS(object):
         Returns: none
     
         NOTE this is an internal function called by ReturnQuantile(). The user 
-        can call this method, but this is discouraged...I don't know why.
+        can call this method, but this is discouraged...
         '''
         ### check for excess material in the gravel and/or fines fractions:
         pcf=self.df[s][0]/self.df[s].sum()*100    # percent coarse fraction
         pff=self.df[s][-1]/self.df[s].sum()*100   # percent fine fraction
                 
         if(pcf > 5.0):
-            print('WARNING: percent of unidfferentiated coarse fraction in sample',s,'is:' ,str(round(pcf,2)),'which exceeds 5% of total by weight--As values in excess of 5% here can introduce significant error in resulting  computations, this fraction will not be considered in the analysis. NOTE THAT NO EXTRAPOLATED VALUES ARE USED IN THE FOLK AND WARD (FW) GRAPHiCAL METHOD COMPUTATIONS. \n')
+            print('WARNING: percent of unidfferentiated coarse fraction in sample',s,'is:' ,str(round(pcf,2)),'which exceeds 5% of total by weight--values in excess of 5% here can introduce significant error in the analysis. \n')
+            print('NOTE THAT SOME QUANTILE VALUES WILL BE DETERMINED BY EXTRAPOLATION. \n')
         
         if(pff > 5.0):
-            print('WARNING: percent of unidfferentiated fine fraction in sample',s, 'is:' ,str(round(pff,2)),'which exceeds 5% of total by weight--As values in excess of 5% here can introduce significant error in resulting  computations, this fraction will not be considered in the analysis. NOTE THAT NO EXTRAPOLATED VALUES ARE USED IN THE FOLK AND WARD (FW) GRAPHICAL METHOD COMPUTATIONS. \n')
+            print('WARNING: percent of unidfferentiated fine fraction in sample',s, 'is:' ,str(round(pff,2)),'which exceeds 5% of total by weight--values in excess of 5% here can introduce significant error in the analysis. \n')
+            print('NOTE THAT SOME QUANTILE VALUES WILL BE DETERMINED BY EXTRAPOLATION. \n')
         return()
 
 
 
+    def ExtrapolateQuantileLinearFit(self, q, qnt):
+        '''
+        '''
+        Xk_1=float(q['phi'].iloc[0])
+        Yk_1=float(q['cum_weight_percent'].iloc[0])
+        Xk=float(q['phi'].iloc[1])
+        Yk=float(q['cum_weight_percent'].iloc[1])
+        #Xe=Xk_1+((Xk-Xk_1)*((qnt-Yk_1)/(Yk-Yk_1)))
+        return( Xk_1+((Xk-Xk_1)*((qnt-Yk_1)/(Yk-Yk_1))) )
+        
 
-    def ReturnQuantile(self,s,d):
-        '''uses simple linear interpolation to simulate the graphical estimation 
-        of a single quantile value. Quantile values are required to compute 
-        sediment sample statistics, in the style of Folk (1980). See 
-        self.QuantilesList for required...
+    def poly2f(self,x,a,b,c):
+        return( a*x**2+b*x+c )
+    
+
+    def poly3f(self, x, a, b, c, d):     # 3rd order fit is really close-overfit?
+        return( a*x**3+b*x**2+c*x+d ) 
+        
+        
+        
+    def ExtrapolateQuantilePolyFit(self, q, qnt, extrap_method='Poly2'):
+        '''Provides a non-linear (polynomial) option to extrapolate quantile 
+        values used in the graphic statistical computations. Fits a 2nd or 3rd
+        degree polynomial (based on value of degree argument (domain: 2,3)) to
+        data in dataframe q and uses the resulting polynomial function to
+        extimate quantile values where the minimum measured cumulative weight 
+        percentage is greater than the smallest quaantile(s). This typically
+        occurs when samples are skewed toward the coarser fractions.
+        
+        This approach has the potential to provide more accurate results than 
+        does a simple linear fit (see self.ExtrapolateQuantileLinearFit) but 
+        the user should examine and compare results provided here with the
+        linear returns.
+        
+        Inputs:
+            q : dataframe containing all cumulative weights associated with
+                seive 'bins' greated than the qnt value
+            qnt : the current quantile value to be computed/determined
+            degree : the degree or order of the poly function to be fit to the
+                data. Acceptable values are 2 or 3.
+                
+        Returns: the extrapolated quantile value in phi units
+        '''
+        step=-0.001
+        w=0
+        X=np.array( q['phi'], dtype='float64').ravel()
+        Y=np.array( q['cum_weight_percent'], dtype='float64').ravel()
+        
+        if(extrap_method=='Poly2'):
+            params, pcov = curve_fit(self.poly2f, X, Y)
+            A=params[0]; B=params[1]; C=params[2]
+
+            # iterate to converge on closest guess to qnt +/- step:
+            for guess in np.arange(X.min(), X.min()-2, step):
+                r=A*guess**2+B*guess+C
+                if(r <= qnt+0.1) & (r >= qnt-0.1):
+                    w=guess
+                    
+        if(extrap_method=='Poly3'):
+            params, pcov = curve_fit(self.poly3f, X, Y)
+            A=params[0]; B=params[1]; C=params[2]; D=params[3]
+
+            # iterate to converge on closest guess to qnt +/- step:
+            for guess in np.arange(X.min(), X.min()-2, step):
+                r=A*guess**3+B*guess**2+C*guess+D
+                if(r <= qnt+0.1) & (r >= qnt-0.1):
+                    w=guess
+                    
+        plt.figure()
+        plt.plot(X, Y, 'ko', label="Original Data")
+        plt.plot(X, self.poly3f(X, *params), 'r-', label="Fitted Curve")
+        plt.plot((-3,3),(5,5))     # 5th quantile
+        plt.plot((-3,3),(10,10))   # 10th quantile
+        plt.ylim(0,100)
+        plt.xlim(-3,4)
+        plt.legend()
+        plt.show()
+        
+        return( w )
+        
+        
+        
+    def InterpolateQuantileLinearFit(self, p, q, qnt):
+        '''
+        '''
+        Yk_1=float(p['cum_weight_percent'].iloc[[-1]])
+        Yk=float(q['cum_weight_percent'].iloc[[0]])
+        Xk_1=float(p['phi'].iloc[[-1]])
+        Xk=float(q['phi'].iloc[[0]])
+        return(Xk_1+((Xk-Xk_1)*((qnt-Yk_1)/(Yk-Yk_1))) )
+        
+        
+        
+        
+    def ReturnQuantile(self, qnt, extrap_method):
+        '''Computes current (user-requested) quantile value: qnt. 
+        Process simulates the graphical estimation of a single quantile value
+        where the quantile, phi units, is read visually from a graph of 
+        cumulate weight percentage for the current sample. Quantile values are 
+        required to compute sediment sample statistics, in the style of 
+        Folk (1980).  
            
         Input Args:
-            s  sample identifier  as a Python string (EX. 'S1')
-            d  quantile value to be interpolated as integer
+            qnt  quantile value to be interpolated/extrapolated : integer
                
         Returns:
-            the interpolated quantile value in phi units
+            the interpolated or extrapolated quantile value in phi units
                 
         NOTE this is an internal function called by 
            InterpolateQuantileValues(). The user can call this method, but this 
-           is discouraged...I don't know why.
+           is discouraged...
         '''
-        p=self.df.query(s+'cwp'+'<'+str(d) )
-        q=self.df.query(s+'cwp'+'>'+str(d) )
-        if p.empty:            # if d < largest screen size (phi) in column, return -9
+        p=self.sdf.query('cum_weight_percent'+'<'+str(qnt) )
+        q=self.sdf.query('cum_weight_percent'+'>'+str(qnt) )
+        if(p.empty) & (q.empty):     # if both sub dfs are empty, abort
             return(np.nan)
-        else:                                # otherwise, interpolate...
-            A=float(p[s+'cwp'].iloc[[-1]])
-            B=float(q[s+'cwp'].iloc[[0]])
-            C=float(p['phi'].iloc[[-1]])
-            D=float(q['phi'].iloc[[0]])
-            return( (((d - A)/(B - A))*( D-C ))+C )
+        if p.empty:            # we must extrapolate to estimate quantile
+            if(extrap_method=='Linear'):
+                qval=self.ExtrapolateQuantileLinearFit(q, qnt)
+            if(extrap_method=='Poly2') or (extrap_method=='Poly3'):
+                qval=self.ExtrapolateQuantilePolyFit(q, qnt, extrap_method)
+
+        else:                  # otherwise, (linear) interpolate quantile:
+            qval=self.InterpolateQuantileLinearFit(p, q, qnt)
+ 
+        return( qval )
 
 
+   
 
-
-    def InterpolateQuantileValues(self, s):
+    def InterpolateQuantileValues(self, extrap_method):
         '''interpolate quantiles in self.quantilesList for each transect sample. 
         Calls function ReturnQuantile() for each quantile value to be computed 
         from the seived weights
 
-        Input args: s - sample identifier  as a Python string (EX. 'S1')
+        Input args: extrap_method - the type of extrapolation to use, if 
+                    required. Options are: 'Linear' (default), 'Poly2' second
+                    degree (quadratic) polynomial fit to cumulative weights, 
+                    Poly3 a third order polynomial fit to the cumulative
+                    weights in dataframe q (q is extracted from df in method
+                    ReturnQuantile())
 
         Returns: a Python list of interpolated quantiles 
         '''
-        qList=[]
-        self.CheckPercentofCoarseFineFractions(s)
-        for d in self.quantilesList:
-            qList.append( round(self.ReturnQuantile(s,d),2) )
+        qntList=[]
+        ###self.CheckPercentofCoarseFineFractions(s)
+        for qnt in self.quantilesList:
+            qntList.append( round(self.ReturnQuantile(qnt, extrap_method),2))
+           
+        return(qntList)
 
-        return(qList)
 
 
-
-    ## computational method 1: Folk and Ward 'classi' graphic:
-    def ComputeFWLogarithmicGraphicStats(self,s):
-        '''computes "graphic" mean, median, standard deviation, skewness, and 
+    ## computational method 1: Folk and Ward 'classic' graphic:
+    def ComputeFWLogarithmicGraphicStats(self):
+        '''computes "graphic" mean, standard deviation, skewness, and 
         kurtosis (per Folk and Ward, 1957 and Folk, 1980) for a given transect 
         sample. NOTE this is the 'classic' Folk and Ward (1957) and Folk (1980)
-        particle size analysis method.
+        particle size analysis method (traditionally using hand-drawn
+        probability ordinate cumulative frequency plots).
 
         Input args:
-            s  sample identifier as a Python string (EX. 'S1')
-            Q  list of interpolated quantile values (9 items) for current 
-               sample in phi units
+            None
 
         Returns:
-            Python tuple containing MN=mean, SD=std.deviation, 
+            Python list containing MN=mean, SD=std.deviation, 
             SK=skewness, K=kurtosis in phi units.
         '''
         Q=self.Q
@@ -322,18 +425,17 @@ class SedSAS(object):
            ((Q[8]+Q[0]-2*Q[4])/(2*(Q[8]-Q[0])))
         K=(Q[8]-Q[0])/(2.44*(Q[5]-Q[3]))
 
-        return( (MN,SD,SK,K) )
+        return( [MN,SD,SK,K] )
 
 
 
 
-    def ComputeFWGeometricGraphicStats(self,s):
-        '''computes geometric "graphic" mean, median, standard deviation, 
+    def ComputeFWGeometricGraphicStats(self):
+        '''computes geometric "graphic" mean, standard deviation, 
         skewness, and kurtosis (per Folk and Ward, 1957) for a given transect 
         sample.
 
         Input args:
-            s  sample identifier as a Python string (EX. 'S1')
             Q  list of interpolated quantile values (9 items) for current 
                sample in phi units
 
@@ -344,48 +446,50 @@ class SedSAS(object):
         ## convert quantiles in phi units to ln(mm) ( np.log(d(mm)=2^-phi) )
         ## where np.log is numpy's natural log (ln) and 2^-phi is the 
         ## conversion from phi to mm:
-        
-        Qm=[ np.log(2**((-1)*q)) for q in self.Q]
-        
+        Qp=self.Q
+        Qm=[2**(-1*i) for i in Qp]
+                
         # note that np.log is the natural logarithm
-        MN=(Qm[2] + Qm[4] + Qm[6])/3                  # the graphic mean:
-        SD=((Qm[6] - Qm[2])/4)+((Qm[8] - Qm[0])/6.6)  # inclusive graphic
-                                                      # standard deviation:
+        MN=np.exp( (np.log(Qm[2]) + np.log(Qm[4]) + np.log(Qm[6]))/3 ) # the graphic mean:
+        SD=np.exp( ((np.log(Qm[2]) - np.log(Qm[6]))/4) + ((np.log(Qm[0]) - \
+         np.log(Qm[8]))/6.6) )  # inclusive graphic standard deviation:
 
         # the graphic skewness (SK):
-        SK=(Qm[6] + Qm[2] - 2*Qm[4]) / (2*(Qm[6] - Qm[2])) \
-        + (Qm[8] + Qm[0] - 2*(Qm[4])) /(2*(Qm[8] - Qm[0]))
+        A=(np.log(Qm[2]) + np.log(Qm[6]) - 2*np.log(Qm[4])) / (2*(np.log(Qm[6]) - np.log(Qm[2])))
+        B=(np.log(Qm[0]) + np.log(Qm[8]) - 2*np.log(Qm[4])) / (2*(np.log(Qm[8]) - np.log(Qm[0])))
+        SK=A+B
+        
         # and kurtosis (K)
-        K=(Qm[8] - Qm[0]) / (2.44*(Qm[5] - Qm[3]))                                               
+        K=(np.log(Qm[0]) - np.log(Qm[8])) / (2.44*( np.log(Qm[3]) - np.log(Qm[5])))
 
-        return( (MN,SD,SK,K) )
-
-
+        return( [MN,SD,SK,K] )
 
 
-    def ComputeArithmeticMethodofMomentsStats(self, s):
+
+
+    def ComputeArithmeticMethodofMomentsStats(self):
         '''computes the mean, sorting (standard deviation), skewness, and
         kurtosis (the first four statistical moments) using the method of
         moments technique (based on weight distributions--weight fractions
         captured in each seive). 
                            
-        Inputs: s sample identifier as a Python string (EX. 'S1')
+        Inputs: None
         
         Returns: Python tuple containing the four computed moments
         
         Units are mm, where appropriate
         '''
         ## compute the mean (M1) by airthmetic MoM:
-        M1=( self.df[s+'wp']*self.df['midpt_mm'] ).sum() / self.df[s+'wp'].sum()
+        M1=( self.sdf['weight_percent']*self.sdf['midpt_mm'] ).sum() / self.sdf['weight_percent'].sum()
         
         ## compute the 2nd moment (M2 std. dev.) by airthmetic MoM:
-        M2=( ((self.df[s+'wp']* (self.df['midpt_mm']-M1)**2 ).sum())/ 100)**0.5
+        M2=( ((self.sdf['weight_percent']*(self.sdf['midpt_mm']-M1)**2 ).sum())/ 100)**0.5
         
         ## compute the 3rd moment (M3 skewness) by arithmetic MoM:
-        M3=((self.df[s+'wp']* (self.df['midpt_mm']-M1)**3 ).sum())/(100*(M2**3))
+        M3=((self.sdf['weight_percent']*(self.sdf['midpt_mm']-M1)**3 ).sum())/(100*(M2**3))
         
         ## compute the 4th moment (M4 kurtosis) by arithmetic MoM:
-        M4=((self.df[s+'wp']* (self.df['midpt_mm']-M1)**4 ).sum())/(100*(M2**4))
+        M4=((self.sdf['weight_percent']*(self.sdf['midpt_mm']-M1)**4 ).sum())/(100*(M2**4))
         
         return( (M1,M2,M3,M4) )
         
@@ -413,25 +517,25 @@ class SedSAS(object):
                   np.log(M1))**2 ).sum())/ 100)**0.5 )
         
         ## compute the 3rd moment (M3 skewness) by arithmetic MoM:
-        M3=((self.df[s+'wp']* (np.log(self.df['midpt_mm']) - \
-                  np.log(M1))**3).sum())/(100*np.log(M2**3))
+        M3=(self.df[s+'wp']*((np.log(self.df['midpt_mm']) - \
+                  np.log(M1))**3)).sum() / (100*np.log(M2)**3)
         
         ## compute the 4th moment (M4 kurtosis) by arithmetic MoM:
-        M4=((self.df[s+'wp']* (np.log(self.df['midpt_mm']) - \
-                  np.log(M1))**4 ).sum())/(100*np.log(M2**4))
+        M4=(self.df[s+'wp']*(np.log(self.df['midpt_mm']) - \
+                  np.log(M1))**4 ).sum()/(100*np.log(M2)**4)
         
         return( (M1,M2,M3,M4) )
         
         
         
         
-    def ComputeLogarithmicMethodofMomentsStats(self, s):
+    def ComputeLogarithmicMethodofMomentsStats(self):
         '''computes the mean, sorting (standard deviation), skewness, and
         kurtosis (the first four statistical moments) using the logarithmic 
         method of moments technique (based on weight distributions--weight 
         fractions captured in each seive). 
                            
-        Inputs: s sample identifier as a Python string (EX. 'S1')
+        Inputs: None
         
         Returns: Python tuple containing the four computed moments 
         
@@ -441,7 +545,7 @@ class SedSAS(object):
         M1=( self.df[s+'wp']*self.df['midpt_phi'] ).sum() / self.df[s+'wp'].sum()
         
         ## compute the 2nd moment (M2 std. dev.) by airthmetic MoM:
-        M2=( ((self.df[s+'wp']* (self.df['midpt_phi']-M1)**2 ).sum())/ 100)**0.5
+        M2=( (self.df[s+'wp']*((self.df['midpt_phi']-M1)**2)).sum()/ 100)**0.5
         
         ## compute the 3rd moment (M3 skewness) by arithmetic MoM:
         M3=((self.df[s+'wp']* (self.df['midpt_phi']-M1)**3 ).sum())/(100*(M2**3))
@@ -454,14 +558,11 @@ class SedSAS(object):
         
 
 
-    def FindSampleModes(self, s):
-        '''locates any modal weight percentage values in current sample. 
+    def FindSampleModesDepr(self, s):
+        '''locates modal weight percentage values in current sample. 
 
            Input args: 
                s = sample identifier as a Python string (EX. 'S1)
-               prt2stdout True/False(default) gives user the option to print 
-               results to
-               the console (std out) in addition to results in the returned dict.
 
            Returns: Python ordered dictionary of modes (if any) found in the 
                current sample. The dictionary key contains the mode in phi size 
@@ -511,19 +612,58 @@ class SedSAS(object):
 
 
 
-    def PrintSampleWeightsDataTable(self, s):
+    def FindSampleModes(self):
+        '''locates modal weight percentage values in current sample. 
+
+           Input args: None
+
+           Returns: Python tuple of modes (if any) found in the 
+               current sample. The 0th item contains the mode in phi size 
+               units. The 1st item is the mode in mm.
+           Note that this method is a revised/updates, and hopefully improved,
+           version of the existing, and original, FindSampleModes method, which
+           is still in service. If this rev'ed version proves to be a better 
+           device than the original, the latter will be deprecated and removed.
+           Otherwise...
+        '''
+        #self.df.sort_values( [s+'wp'], axis=1)
+        # initialize an empty modes list:
+        modes=[]
+        
+        # sort the weight percentages column in df in descending 
+        # order, put into list B:
+        B=sorted(list( self.df[s+'wp'] ), reverse=True)
+        
+        for i in range(len(B)):
+            if i==0:                   # for primary mode
+                phi=self.screens[ list( self.df[s+'wp'] ).index(B[0])]
+                mm=2**(phi*-1)
+                modes.append( (phi,mm) )
+            else:
+                Amax=B[i]
+                Amax_index=list( self.df[s+'wp'] ).index(Amax)
+                if( (Amax_index < len(self.df[s+'wp'])-1) and \
+                   (self.df[s+'wp'][Amax_index-1] < Amax) and \
+                   (self.df[s+'wp'][Amax_index+1] < Amax) ):
+                    phi=self.screens[Amax_index]
+                    mm=2**(phi*-1)
+                    modes.append( (phi,mm) )  
+        return(modes)
+           
+
+
+    def PrintSampleWeightsDataTable(self):
         '''prints the raw, weight percentage, and cumulative weight percentage 
         values in tabular format for each screen bin to the console.
 
-        Input args: 
-            s = sample identifier as a Python string (EX. 'S1)
+        Input args: none
 
         Returns: none
         '''
         # ## print the report header
         print('-'*62)
         print('-'*62)
-        print('Sample Weights Table','     Transect: ',self.transect,'     Sample: ',s )
+        print('Sample Weights Table','     Sample: ', self.sample_id )
         print('-'*62)
         # create temporary data frame table1df and populate with screen values (phi)
         table1df=pandas.DataFrame( self.df['phi'])         
@@ -556,7 +696,7 @@ class SedSAS(object):
         print('-'*80)
         print('Particle-Size Composition, Transect:', self.transect, \
               'Sample', s,':')
-        print('Undifferentiated gravel fraction (< -1 phi):', \
+        print('Undifferentiated gravel fraction (<= -1 phi):', \
               str(self.dfg[s].sum()), 'gm')
         print('Undifferentiated sand fraction (-1 to 4 phi):', \
               str(self.dfs[s].sum()), 'gm')
@@ -570,12 +710,11 @@ class SedSAS(object):
 
 
 
-    def PrintComputedStatistics(self, s, stats, units='phi', method='FWlog' ):
+    def PrintComputedStatistics(self, stats, units='phi', method='FWlog' ):
         '''prints the computed mean, median, standard deviation, skewness, and 
            kurtosis for each transect sample in tabular format to the console. 
 
             Input args:
-                s = sample identifier as a Python string (EX. 'S1)
                 stats = Python tuple containing the graphic mean,  std. 
                 deviation, skewness, and kurtosis.
                 units - phi (default) or mm. The particle size units--based on 
@@ -586,7 +725,7 @@ class SedSAS(object):
                              'FWgeo' for ComputeFWGeometricGraphicStats()
                              'MoMar' for ComputeArithmeticMethodofMomentsStats
                              'MoMgeo' for ComputeGeometricMethodofMomentsStats
-                             'Momlog' for ComputeLogarithmicMethodofMomentsStats
+                             'MoMlog' for ComputeLogarithmicMethodofMomentsStats
                         default is 'FWlog'
 
             Returns: none
@@ -598,7 +737,7 @@ class SedSAS(object):
         if(method=='MoMlog'): method=('Method of Moments (Logarithmic)')
         
         print('-'*80)
-        print('Sample Particle Size Statistics, Transect:',self.transect,'  Sample:',s)
+        print('Sample Particle Size Statistics, Sample:', self.sample_id)
         
         print('Computation:', method)
         print('')
@@ -611,21 +750,22 @@ class SedSAS(object):
         if np.isnan(stats[1]):
             print('Estmated Standard Deviation:','Out of Range*')
         else:
-            print('Estmated Standard Deviation', round(stats[2],2), units )
+            print('Estmated Standard Deviation', round(stats[1],2), units )
 
         if np.isnan(stats[2]):
             print('Estmated Skewness:','Out of Range*')
         else:
-            print('Estmated Skewness', round(stats[3],2) )
+            print('Estmated Skewness', round(stats[2],2) )
 
         if np.isnan(stats[3]):
             print('Estmated Kurtosis:','Out of Range*')
         else:
-            print('Estmated Kurtosis', round(stats[4],2) )
+            print('Estmated Kurtosis', round(stats[3],2) )
 
         print('-'*80)
-        print('* out of range values indicate that one or more quantiles fall outside the range along the cumulative frequency curve.'+'\n')
+        print('* out of range values indicate that one or more quantiles needed for the computation fall outside  data range along the cumulative frequency curve.'+'\n')
         print('-'*80)
+
 
 
 
@@ -633,7 +773,7 @@ class SedSAS(object):
         '''Prints the sample modes located by method FindSampleModes to the
         console.
         
-        Inputs: s - the ID referencing the current sediment sample
+        Inputs: s = current sample identifier as a Python string (EX. 'S1)
                 modes - the mode(s) (up to the first 3) located by method
                 FindSampleModes() as a Python dictionary.
         '''
@@ -646,161 +786,8 @@ class SedSAS(object):
         
         return()
 
+### CONSTRUCTION CONTINUES BELOW...
 
-
-    def Analyze2CSVHeader(self):
-        ''' generates a columns header string (names of each data column written 
-        by method Analyze2CSV) for output data file created in method Analyze2CSV
-        
-            Input Args: none
-            
-            Returns: header as a Python string
-        '''
-        ws='Sample,'
-        # craft a columns header and write to write string    
-        for i in range(3):
-            if(i==0):    
-                w=['\''+str(h)+'phi_rwts\',' if(h != 4.0) else '\'fines_rwts\'' for h in self.screens ]
-                ws=ws+''.join(w)
-            if(i==1):
-                ws=ws+','
-                w=['\''+str(h)+'phi_pwts\',' if(h != 4.0) else '\'fines_pwts\'' for h in self.screens ]
-                ws=ws+''.join(w)
-            if(i==2):
-                ws=ws+','
-                w=['\''+str(h)+'phi_cpwts\',' if(h != 4.0) else '\'fines_cpwts\'' for h in self.screens ]
-                ws=ws+''.join(w)
-        ws=ws+','+'\'g_mean\''+','+'\'g_median\''+','+'\'g_std\''+','+'\'g_skew\''
-        ws=ws+','+'\'g_kurt\''+','+'\'m_mean\''+','+'\'m_std\''+','+'\'undif_cor\''
-        ws=ws+','+'\'undif_fin\''+','+'\'mode1_phi\''+','+'\'mode1_wt\''
-        ws=ws+','+'\'mode2_phi\''+','+'\'mode2_wt\''
-        ws=ws+','+'\'mode3_phi\''+','+'\'mode3_wt\''
-
-        return(ws)
-
-
-
-    def Analyze2Stdout(self):
-        ''' performs internal processing (without need for the user to call the 
-        individual methods explicitly/directly) to compile the raw data, weight 
-        percentages, cumulative weight percentages, graphic and method-of-moment 
-        statistics, and the mode(s)  All of the these are written directly, 
-        formatted to standard out.
-        
-        Input args:
-        
-        Returns: none
-        '''
-        # compute the quantile values from the raw weights:
-        D=self.InterpolateQuantileValues()
-                    
-        for s, Q in D.items():
-            if( math.isnan( self.df[s].sum()) == True):  #pandas.isnull(self.df[s]) )
-                print('Skipping sample:',self.transect,s, 'because of missing data...')
-            else:
-                print('')
-                print('Sample:', str(s))
-                self.ComputeLogGraphicStats(s, Q, True)
-                self.PrintMomentStats(self.ComputeMomentStats(s))
-                self.FindSampleModes(s, True)
-
-                print('')
-        return()
-        
-        
-        
-    def Analyze2CSV(self, fn):
-        ''' performs internal processing (without need for the user to call the 
-        individual methods explicitly/directly) to compile the raw data, weight 
-        percentages, cumulative weight percentages, graphic and method of moment 
-        statistics, and the mode(s). All of these are written directly to an 
-        output file (user specified path and file name) formatted as comma 
-        separated values. 
-
-            Input args: 
-                fn = user-defined output file path and name
-
-            Returns: none
-        '''
-        # call Analyze2CSVHeader to generate a header string for the output file
-        hdr=self.Analyze2CSVHeader()
-
-        D=self.InterpolateQuantileValues()
-        # to generate the requisite content that will be written to the output file, call
-        # and run the following methods automatically:
-
-        # open the target text file and write the header string:
-        f=open(fn, 'a' )
-        f.write(hdr + '\n')
-
-        # start loop here:
-        for s, Q in D.items():
-            if( math.isnan( self.df[s].sum()) == True):  #pandas.isnull(self.df[s]) )
-                print('Skipping sample:',self.transect,s, 'because of missing data...')
-            else:
-                ws=s+','
-                gStats=self.ComputeGraphicStats(s, Q)
-                mStats=self.ComputeMomentStats(s)
-                modes=self.FindSampleModes(s)
-
-                # comprehensions extract data frame columns (series), round values to
-                # places, convert to strings, and then add (concatenate) to write
-                # string ws...
-                w=[str(round(h,3))+',' for h in self.df[s]]        # raw wt series to str
-                ws=ws+''.join(w)
-                w=[str(round(h,3))+',' for h in self.df[s+'wp']]   # wt% series to str
-                ws=ws+''.join(w)
-                w=[str(round(h,3))+',' for h in self.df[s+'cwp']]  # cumwt% series to str
-                ws=ws+''.join(w)
-
-                w=[str(round(h,3))+',' for h in gStats]
-                ws=ws+''.join(w)
-                w=[str(round(h,3))+',' for h in mStats]
-                ws=ws+''.join(w)
-                ws=ws.rstrip(',')   # remove that last residual comma
-
-                # get the modes, up to the first three, to add to out file:
-                keys=list(modes.keys())
-                vals=list(modes.values())
-
-                w=''
-                for i in range(3):
-                    try:
-                        key=keys[i]; val=vals[i]
-                        w=str(key)+','+str(round(val,3))
-                        ws=ws+','+w
-                    except:
-                        ws=ws+','
-
-                print('Writing data for sample:', s, 'to file:', fn)
-                f.write(ws + '\n')
-                #print('')
-                #print( ws )
-
-        return()
-
-
-
-
-
-    def PrintSampleModes(self, s, modes):
-        '''Prints the mode values located in method FindSampleModes to the
-           console
-
-           Input args:
-               modes = Python dictionary containing key (mode in phi units) and
-               value (mode in weight percent) pairs
-
-           Returns: none
-        '''
-        print('Mode(s): Transect', self.transect, 'Sample:', s )
-        print('Phi', ' Weight %')
-        print('-------------------')
-        for k,v in modes.items():
-            print(k,str(round(v,3)))
-        print('-------------------')
-
-        return()
 
 
 
@@ -877,14 +864,13 @@ class SedSAS(object):
 
 
 
-    def PLOTDualSampleWtPercents(self, s, mode='print'):
+    def PLOTDualSampleWeightPercents(self, mode='print'):
         '''plots both the weight percentage and cumulative weight percentage
            histogram and curves (histo+PDF, and CDF) side by side and together,
            by sieve fraction for the current transect sample. Can plot to
            console or to stored PNG file.
 
             Input args:
-                s = sample identifier as a Python string (EX. 'S1)
                 mode = plot destination: mode='print' plot written to console
                 (default)
                 mode='save' plot written to png output
@@ -896,10 +882,13 @@ class SedSAS(object):
                 - PLOTSampleWtPercents and 
                 - PLOTSampleCumWtPercents.
         '''
+        #import seaborn as sns
+        #sns.set()
         plt.style.use('ggplot')
         bins = np.arange(len(self.screens))
         w=0.75
-        xTickLabels=list(map(str, self.screens))   # convert list of numeric screen sizes to list of strings for labels
+        xTickLabels=list(map(str, self.screens))   # convert list of numeric screen sizes 
+                                                   # to list of strings for labels
         xTickLabels[-1]='fines'
 
         # write header to console:
@@ -907,12 +896,12 @@ class SedSAS(object):
         #print('  Transect: '+self.transect+'   Sample: '+s)
         print('')
 
-        fig1=plt.figure(figsize=(12,4))
+        fig1=plt.figure(figsize=(21,7))
 
         # weight percentages subplot
         ax1=fig1.add_subplot(1,2,1)
-        ax1.bar(bins,self.df[s+'wp'], align='center', width=w)
-        ax1.plot(bins,self.df[s+'wp'],'g--',linewidth=3.5)
+        ax1.bar(bins,self.sdf['weight_percent'], align='center', width=w)
+        ax1.plot(bins,self.sdf['weight_percent'],'g--',linewidth=3.5)
         ax1.set_xlim(-0.25,len(self.screens))
         #ax1.set_ylim(0,105)
         ax1.set_xticklabels(xTickLabels)
@@ -924,7 +913,7 @@ class SedSAS(object):
         # cumulative weight percentages subplot:
         ax2=fig1.add_subplot(1,2,2)
         #ax2.bar(bins,self.df[s+'cwp'], align='center', width=w)   # uncomment to draw bars
-        ax2.plot(bins,self.df[s+'cwp'],'g-', linewidth=2.0)
+        ax2.plot(bins,self.sdf['cum_weight_percent'],'g-', linewidth=2.0)
         ax2.set_xlim(-0.25,len(self.screens))
         ax2.set_ylim(0,105)
         ax2.set_xticklabels(xTickLabels)
@@ -936,7 +925,7 @@ class SedSAS(object):
         ax2.set_title('Cumulative Frequency Curve-Linear Ordinate') #: Transect '+transect+'  Sample '+s)
         #ax2.grid(which='both')
 
-        fig_name=self.transect+'_'+s+'_dual.png'
+        fig_name=str(self.sample_id)+'_'+'_dual.png'
         if(mode=='print'):
             plt.show()
         if(mode=='save'):
