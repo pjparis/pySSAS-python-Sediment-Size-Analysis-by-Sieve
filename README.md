@@ -37,7 +37,7 @@ import pandas<br>
 import matplotlib.pyplot as plt<br>
     <br><br>
     
-## The most thorough documentation for the class is to be found in the Jupyter Notebook: SedimentSizeAnalysisbySieveNotebook, found elsewhere in this repository.
+## The most thorough documentation for the class is to be found in the Jupyter Notebook: SedimentSizeAnalysisbySieveNotebook, included in this repository.
 <br><br>
 
 
