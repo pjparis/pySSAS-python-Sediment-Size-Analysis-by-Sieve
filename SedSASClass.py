@@ -250,10 +250,31 @@ class SedSAS(object):
     def ExtrapolateQuantileLinearFit(self, q, qnt):
         '''
         '''
-        Xk_1=float(q['phi'].iloc[0])
-        Yk_1=float(q['cum_weight_percent'].iloc[0])
-        Xk=float(q['phi'].iloc[1])
-        Yk=float(q['cum_weight_percent'].iloc[1])
+        ### check magnitude of cum wt pct for phi[0]. if it's 
+        ### > 30% then we place the x-intercept at pho[0]-2
+        ### if it's <= 30% then we place the x-intercept at 
+        ### phi[0] - 1. This limits the likelihood of large 
+        ### sample fractions in the topmost sieve yielding 
+        ### exaggerated quantile estimates:
+        print('Warning: Extrapolating', str(qnt), 'percent quantile')
+        cwp1=float(q['cum_weight_percent'].iloc[0])
+        if( cwp1 > 30.0 ):
+            Xk_1=float(q['phi'].iloc[0]) - 2.0
+            Yk_1=0.0
+            Xk=float(q['phi'].iloc[0])
+            Yk=float(q['cum_weight_percent'].iloc[0])
+            
+        elif( cwp1 > 10.0 and cwp1 <= 30.0 ):
+            Xk_1=float(q['phi'].iloc[0]) - 1.0
+            Yk_1=0.0
+            Xk=float(q['phi'].iloc[0])
+            Yk=float(q['cum_weight_percent'].iloc[0])
+            
+        else:
+            Xk_1=float(q['phi'].iloc[0])
+            Yk_1=float(q['cum_weight_percent'].iloc[0])
+            Xk=float(q['phi'].iloc[1])
+            Yk=float(q['cum_weight_percent'].iloc[1])
         #Xe=Xk_1+((Xk-Xk_1)*((qnt-Yk_1)/(Yk-Yk_1)))
         return( Xk_1+((Xk-Xk_1)*((qnt-Yk_1)/(Yk-Yk_1))) )
         
@@ -394,7 +415,7 @@ class SedSAS(object):
         qntList=[]
         ###self.CheckPercentofCoarseFineFractions(s)
         for qnt in self.quantilesList:
-            qntList.append( round(self.ReturnQuantile(qnt, extrap_method),2))
+            qntList.append( round(self.ReturnQuantile(qnt, extrap_method),3))
            
         return(qntList)
 
