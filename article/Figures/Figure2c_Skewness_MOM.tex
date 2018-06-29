@@ -1,0 +1,21 @@
+\documentclass[10pt]{article}
+\usepackage[paperwidth=5in, paperheight=2.0in, hoffset=-0.7in]{geometry}
+\pagenumbering{gobble}
+
+\begin{document}
+
+\begin{center}
+\begin{tabular}{ c c  }
+\multicolumn{2}{c}{\textbf{Grain-Size Skewness (Method of Moments) }} \\
+\hline
+\textbf{Skewness Range} & \textbf{Skewness Classifier}  \\
+\hline
+$sk > 1.3 $               &  Very Fine Skewed   \\ 
+$1.3 \le sk > 0.43 $    &  Fine Skewed   \\  
+$0.43 \le sk > -0.43 $   &  Symmetrical  \\     
+$-0.43 \le sk > -1.3 $    & Coarse Skewed    \\   
+$sk < -1.3 $    & Very Coarse Skewed   \\
+\end{tabular}
+\end{center}
+
+\end{document}

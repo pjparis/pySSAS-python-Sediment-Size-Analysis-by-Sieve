@@ -1,0 +1,30 @@
+\documentclass[10pt]{article}
+\usepackage[paperwidth=5.5in, paperheight=4.0in, hoffset=-0.7in]{geometry}
+\pagenumbering{gobble}
+
+\begin{document}
+
+\begin{center}
+\begin{tabular}{ c c c }
+\multicolumn{3}{c}{\textbf{Textural Classification based on Mean Grain-Size}} \\
+\hline
+\textbf{Particle Size Range ($\phi$)} & \textbf{Particle Size Range (mm)} &  \textbf{Textural Classifier} \\
+\hline
+$-8 \le \bar{x}_\phi $               &  $  \bar{x}_m \ge 256 $         & Boulders  \\ 
+$-6.0 \le \bar{x}_\phi < -8.0$   & $64 \ge \bar{x}_m < 256$    & Cobbles  \\  
+$-2.0 \le \bar{x}_\phi < -6.0$   & $4 \ge \bar{x}_m < 64$        & Pebbles  \\     
+$-1.0 \le \bar{x}_\phi < -2.0$   & $2 \ge \bar{x}_m < 4$        & Gravel Granules  \\   
+$0.0 \le \bar{x}_\phi < -1.0$   & $1 \ge \bar{x}_m < 2$        & Very Coarse Sand  \\
+$1.0 \le \bar{x}_\phi < 0.0$   & $0.5 \ge \bar{x}_m < 1$        &  Coarse Sand  \\
+$2.0 \le \bar{x}_\phi < 1.0$   & $0.25 \ge \bar{x}_m < 0.5$        &  Medium Sand  \\
+$3.0 \le \bar{x}_\phi < 2.0$   & $0.125 \ge \bar{x}_m < 0.25$        &  Fine Sand  \\
+$4.0 \le \bar{x}_\phi < 3.0$   & $0.0625 \ge \bar{x}_m < 0.125$        &  Very Fine Sand  \\
+$5.0 \le \bar{x}_\phi < 4.0$   & $0.03125 \ge \bar{x}_m < 0.0625$        &  Coarse Silt  \\
+$6.0 \le \bar{x}_\phi < 5.0$   & $0.015625 \ge \bar{x}_m < 0.03125$        &  Medium Silt  \\
+$7.0 \le \bar{x}_\phi < 6.0$   & $0.0078125 \ge \bar{x}_m < 0.015625$        &  Fine Silt  \\
+$9.0 \le \bar{x}_\phi < 7.0$   & $00390625 \ge \bar{x}_m < 0.0078125$        &  Very Fine Silt  \\
+$9.0 \bar{x}_\phi > 9.0$   & $ \bar{x}_m < 0.0039025$        &  Clay 
+\end{tabular}
+\end{center}
+
+\end{document}
