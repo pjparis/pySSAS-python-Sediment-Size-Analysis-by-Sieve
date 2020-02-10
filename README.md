@@ -1,11 +1,11 @@
-## SedSAS
+## pySSAS
 
 ###Sediment Size Analysis by Sieve  or  Sediment Size Analysis System
 
 
 ## Part I: Introduction:
 
-SedSAS is a class object written in the Python programming language. Its purpose is to provide a set of basic statistical and visualization tools for analyzing unconsolidated sediment size-fraction samples collected in the field and separated using either mechanical sieves or similar analog partition-by-size methods. The class performs the following computations and/or visualizations:
+pySSAS is a class object written in the Python programming language. Its purpose is to provide a set of basic statistical and visualization tools for analyzing unconsolidated sediment size-fraction samples collected in the field and separated using either mechanical sieves or similar analog partition-by-size methods. The class performs the following computations and/or visualizations:
 
 - compute weight percentages and cumulative weight percentages for each size-fraction weight class relative to the total sample.
 
@@ -25,12 +25,12 @@ SedSAS is a class object written in the Python programming language. Its purpose
 - generate a histogram (bins=#sieves) with frequency (PDF) curve and cumulative frequency (CDF) curve for sample weight percentages and cumulative weight percentages, respectively.
 
 
-SedSASClass.py is a stand-alone ASCII-compliant text file with UNIX record delimiters (\n). It is designed as a Python class, to be imported and instantiated from within an external user-built Python script. 
+pySSASClass.py is a stand-alone ASCII-compliant text file with UNIX record delimiters (\n). It is designed as a Python class, to be imported and instantiated from within an external user-built Python script. 
     <br><br>
     <br><br>
 
 ## Part II: Requisite Python Libraries:
-SedSASClass will attempt to load: numpy, pandas, and matplotlib at instantiation. 
+pySSASClass will attempt to load: numpy, pandas, and matplotlib at instantiation. 
 
 import numpy as np<br>
 import pandas<br>
@@ -43,14 +43,14 @@ import matplotlib.pyplot as plt<br>
 
 
 ## Part III: Notes:
-1. SedSASample was written and tested in a Python 3.x environment. It should work under 2.7.x conditions, but do test before proceeding with production work.
+1. pySSASample was written and tested in a Python 3.x environment. It should work under 2.7.x conditions, but do test before proceeding with production work.
 
-2. SedSASample doesn't [yet] do much error handling and so, if something goes wrong expect to see a jumble of obscure tracebacks and other text that may or may not make much sense. Error handling is being folded into the class, but it may never be implemented sufficiently to cover every possible event. 
+2. pySSASample doesn't [yet] do much error handling and so, if something goes wrong expect to see a jumble of obscure tracebacks and other text that may or may not make much sense. Error handling is being folded into the class, but it may never be implemented sufficiently to cover every possible event. 
 
-3. If you do not already have Python installed (Windows users), or only have the core interpreter (Linux, Unix, and OSX users), suggest installing Continuum Analytic's Anaconda distribution. Anaconda contains a really nice softare application package manager called conda that makes it easy to install and updated a Python environment, or environments. Get it here: https://www.continuum.io/downloads
+3. If you do not already have Python installed (Windows users), or only have the core interpreter (Linux, Unix, and OSX users), suggest installing Anaconda's Anaconda distribution. Anaconda contains a really nice softare application package manager called conda that makes it easy to install and updated a Python environment, or environments. Get it here: https://www.continuum.io/downloads
 
 
-**Included sample scripts:**  Actually, just sample data sets, for now. These work with the example scripts presented in SedimentSizeAnalysisbySieveNotebook, a Jupyter Notebook that also just happens to document much of the internals and user interface(s) for the class.
+**Included sample scripts:**  Actually, just sample data sets, for now. These work with the example scripts presented in pySedimentSizeAnalysisbySieveNotebook, a Jupyter Notebook that also just happens to document much of the internals and user interface(s) for the class.
     <br><br>
     <br><br>
 ## Part IV: User-callable Class Methods:
@@ -82,7 +82,7 @@ import matplotlib.pyplot as plt<br>
     <br><br>
 - **PLOTDualSampleWeightPercents:** generates both a histogram and a cumulative frequency curve (line) of weight percentage values for given sample as generated in the class constructor (__init__) and stored in the dataframe df. This is a convenience method that combines the work of PLOTSampleWtPercents and PLOTSampleCumWtPercents into a single function call.
 <br><br>
-- **GetDataFrame:** returns a copy to the pandas data frame df that is built in the SedSASampleClass constructor during initialization and is used throughout the class methods for subsequent computations and reporting. This method will likely prove to be useful when calling SedSASampleClass methods directly (rather than doing streamlined processing-see below).
+- **GetDataFrame:** returns a copy to the pandas data frame df that is built in the SedSASampleClass constructor during initialization and is used throughout the class methods for subsequent computations and reporting. This method will likely prove to be useful when calling pySASampleClass methods directly (rather than doing streamlined processing-see below).
     <br><br>
 - **GetQuantileList:** returns a Python list of interpolated/extrapolated values for the 5th, 10th, 16th, 25th, 50th, 75th, 86th, 90th, and 95th quantiles, based on the CDF. 
 <br><br>
